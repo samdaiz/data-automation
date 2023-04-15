@@ -1,0 +1,98 @@
+------------------CREATE DETAILED AND SUMMARY TABLES------------------
+CREATE TABLE detailed (
+	customer_id 	integer,
+	first_name	varchar(50),
+	last_name	varchar(50),
+	email		varchar(100),
+	payment_id	integer,
+	amount		numeric,
+	payment_date	timestamp
+);
+
+CREATE table summary (
+	full_name	varchar(101),
+	email		varchar(100),
+	amount		numeric
+);
+
+------------------CREATE TRANSFORMATION FUNCTION------------------
+CREATE FUNCTION trigger_function()
+	RETURNS TRIGGER
+	LANGUAGE PLPGSQL
+AS $$
+BEGIN
+	
+	TRUNCATE TABLE summary;
+
+INSERT INTO summary(
+	SELECT 
+		CONCAT(first_name, ‘ ‘, last_name) AS full_name,
+		email,
+		SUM(amount)
+	FROM detailed
+	GROUP BY 
+		customer_id, 
+		full_name, 
+		email
+	ORDER BY SUM(AMOUNT) DESC
+);
+
+END;
+$$
+
+------------------FILL TABLE DETAILED WITH DATA------------------
+INSERT INTO detailed (
+	customer_id,
+	first_name,
+	last_name,
+	email,
+	payment_id,
+	amount,
+	payment_date
+
+)
+
+SELECT	
+	c.customer_id, 
+	c.first_name, 
+	c.last_name, 
+	c.email,
+	p.payment_id,
+	p.amount,
+	p.payment_date
+
+FROM payment AS p
+INNER JOIN customer AS c 
+ON c.customer_id = p.customer_id;
+
+
+------------------TRIGGER AFTER EACH INSERT------------------
+CREATE TRIGGER trigger_function
+	AFTER INSERT ON detailed
+	FOR EACH STATEMENT
+		EXECUTE PROCEDURE trigger_function();
+
+------------------PROCEDURE------------------
+CREATE PROCEDURE refresh_tables()
+LANGUAGE PLPGSQL
+AS $$
+BEGIN
+
+TRUNCATE TABLE detailed;
+
+INSERT INTO detailed 
+
+SELECT 
+	c.customer_id, 
+	c.first_name, 
+	c.last_name, 
+	c.email,
+	p.payment_id, 
+	p.amount, 
+	p.payment_date
+
+FROM payment AS p
+INNER JOIN customer AS c 
+ON c.customer_id = p.customer_id;
+
+END; 
